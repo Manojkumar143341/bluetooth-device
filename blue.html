@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bluetooth Pro Settings</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #efeff7;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            flex-direction: column;
+            text-align: center;
+            overflow: hidden;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            color: #4CAF50;
+            margin-bottom: 30px;
+            opacity: 0;
+            animation: fadeIn 1s ease-in-out forwards;
+        }
+
+
+        #connectButton, #refreshButton {
+            padding: 15px 30px;
+            font-size: 1.2em;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            background-color: #007BFF;
+            color: white;
+            transition: all 0.3s ease;
+            margin: 10px;
+            transform: scale(1);
+            opacity: 0;
+            animation: fadeIn 2s ease-in-out forwards 1s;
+        }
+
+        #connectButton:hover, #refreshButton:hover {
+            background-color: #0056b3;
+            transform: scale(1.1);
+        }
+
+        #connectButton:active, #refreshButton:active {
+            transform: scale(1);
+            background-color: #004080;
+        }
+
+        #deviceInfo {
+            margin-top: 20px;
+            font-size: 1.1em;
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 80%;
+            max-width: 400px;
+            margin: 20px auto;
+            color: #333;
+            opacity: 0;
+            animation: fadeIn 2s ease-in-out forwards;
+            transform: translateY(20px);
+        }
+
+        #deviceInfo.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+
+        #spinner {
+            display: none;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 2s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+
+        #errorMessage {
+            color: red;
+            font-size: 1.2em;
+            margin-top: 20px;
+            opacity: 0;
+            transform: translateY(-30px);
+            animation: slideIn 1s ease-out forwards;
+        }
+
+        @keyframes slideIn {
+            0% {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .progress-container {
+            width: 100%;
+            background-color: #ddd;
+            border-radius: 10px;
+            height: 20px;
+            margin-top: 10px;
+            opacity: 0;
+            animation: fadeIn 1s ease-in-out forwards 1.5s;
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background-color: #4CAF50;
+            border-radius: 10px;
+            transition: width 1s ease;
+        }
+
+        @keyframes fadeIn {
+            0% { opacity: 0; transform: translateY(20px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <h1>Bluetooth</h1>
+    <button id="connectButton">Connect to Bluetooth Device</button>
+    <button id="refreshButton" style="display:none;">Refresh Device</button>
+    <div id="spinner"></div>
+    <div id="deviceInfo" class="hidden"></div>
+    <div id="batteryProgress" class="hidden">
+        <div class="progress-container">
+            <div class="progress-bar" id="batteryBar"></div>
+        </div>
+    </div>
+    <div id="errorMessage" class="hidden"></div>
+
+    <script>
+        if (!navigator.bluetooth) {
+            alert("Web Bluetooth is not supported by your browser.");
+        }
+
+        async function connectBluetoothDevice() {
+            try {
+                document.getElementById('spinner').style.display = 'block';
+                document.getElementById('deviceInfo').classList.add('hidden');
+                document.getElementById('batteryProgress').classList.add('hidden');
+                document.getElementById('errorMessage').classList.add('hidden');
+                
+                const device = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true, 
+                    optionalServices: ['battery_service'] 
+                });
+
+                document.getElementById('spinner').style.display = 'none';
+                const deviceInfo = document.getElementById('deviceInfo');
+                deviceInfo.classList.remove('hidden');
+                deviceInfo.classList.add('visible');
+                deviceInfo.innerHTML = `Connected to ${device.name || "Unnamed Device"} (ID: ${device.id})`;
+
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService('battery_service'); 
+                const characteristic = await service.getCharacteristic('battery_level'); 
+                const value = await characteristic.readValue();
+                const batteryLevel = value.getUint8(0);
+                const batteryBar = document.getElementById('batteryBar');
+                batteryBar.style.width = batteryLevel + '%';
+                document.getElementById('batteryProgress').classList.remove('hidden');
+                deviceInfo.innerHTML += `<br>Battery Level: ${batteryLevel}%`;
+                document.getElementById('refreshButton').style.display = 'inline-block';
+
+            } catch (error) {
+                console.error("Error connecting to Bluetooth device: ", error);
+                document.getElementById('spinner').style.display = 'none';
+                document.getElementById('errorMessage').classList.remove('hidden');
+                document.getElementById('errorMessage').textContent = "Failed to connect to Bluetooth device. Please try again.";
+            }
+        }
+
+
+        async function refreshDeviceConnection() {
+            document.getElementById('deviceInfo').innerHTML = '';
+            document.getElementById('batteryBar').style.width = '0%';
+            document.getElementById('batteryProgress').classList.add('hidden');
+            document.getElementById('errorMessage').classList.add('hidden');
+            document.getElementById('refreshButton').style.display = 'none';
+            await connectBluetoothDevice();
+        }
+        document.getElementById('connectButton').addEventListener('click', connectBluetoothDevice);
+        document.getElementById('refreshButton').addEventListener('click', refreshDeviceConnection);
+    </script>
+</body>
+</html>
